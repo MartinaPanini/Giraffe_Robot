@@ -1,0 +1,8 @@
+prefix=/home/martinapanini/Desktop/Giraffe_Robot/catkin_ws/devel
+
+Name: giraffe_description
+Description: Description of giraffe_description
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

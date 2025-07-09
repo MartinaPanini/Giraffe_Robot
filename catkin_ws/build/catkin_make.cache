@@ -1,0 +1,2 @@
+giraffe_description
+-DCATKIN_DEVEL_PREFIX=/home/martinapanini/Desktop/Giraffe_Robot/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/martinapanini/Desktop/Giraffe_Robot/catkin_ws/install -G Unix Makefiles
