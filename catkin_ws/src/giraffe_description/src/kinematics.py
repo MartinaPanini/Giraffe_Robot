@@ -33,12 +33,6 @@ kin = robotKinematics(robot, conf.frame_name)
 zero = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
 time = 0.0
 
-# Init loggers
-q_log = np.empty((0, 5))
-qd_log = np.empty((0, 5))
-qdd_log = np.empty((0, 5))
-time_log = np.array([])
-
 q = conf.q0.copy()
 qd = conf.qd0.copy()
 qdd = conf.qdd0.copy()
@@ -145,40 +139,61 @@ plt.show()
 ##################
 # Polinomial Trajectory
 ##################
+
+q_log = []
+qd_log = []
+qdd_log = []
+time_log = []
+
 tm.sleep(1.)
 ros_pub.publish(robot, conf.q0)
 tm.sleep(2.)
+
+t = 0.0
 duration = 3.0
+dt = conf.dt*conf.SLOW_FACTOR
+
 a_list = [coeffTraj(duration, conf.q0[i], q_f[i]) for i in range(5)]
 q = np.array([0.0, -math.pi, 0.0, 0.0, -math.pi/2])
 print("Diff between q and q_f:", np.linalg.norm(q - q_f))
 
-while np.count_nonzero(q - q_f):
-    # Polynomial trajectory
+while t <= duration:
+    q = np.zeros(5)
+    qd = np.zeros(5)
+    qdd = np.zeros(5)
+
     for i in range(5):
         a = a_list[i]
-        q[i]   = a[0] + a[1]*time + a[2]*time**2 + a[3]*time**3 + a[4]*time**4 + a[5]*time**5
-        qd[i]  = a[1] + 2*a[2]*time + 3*a[3]*time**2 + 4*a[4]*time**3 + 5*a[5]*time**4
-        qdd[i] = 2*a[2] + 6*a[3]*time + 12*a[4]*time**2 + 20*a[5]*time**3
+        q[i]   = a[0] + a[1]*t + a[2]*t**2 + a[3]*t**3 + a[4]*t**4 + a[5]*t**5
+        qd[i]  = a[1] + 2*a[2]*t + 3*a[3]*t**2 + 4*a[4]*t**3 + 5*a[5]*t**4
+        qdd[i] = 2*a[2] + 6*a[3]*t + 12*a[4]*t**2 + 20*a[5]*t**3
 
-    # update time
-    time = time + conf.dt
+    # Logging
+    q_log.append(q.copy())
+    qd_log.append(qd.copy())
+    qdd_log.append(qdd.copy())
+    time_log.append(t)
 
-    # Log Data into a vector
-    time_log = np.append(time_log, time)
-    q_log = np.vstack((q_log, q ))
-    qd_log= np.vstack((qd_log, qd))
-    qdd_log= np.vstack((qdd_log, qdd))
 
+    t += dt
     #publish joint variables
     ros_pub.publish(robot, q, qd)
     ros_pub.add_marker(p)
-    ros.sleep(conf.dt*conf.SLOW_FACTOR)
+    ros.sleep(dt)
 
     # stops the while loop if  you prematurely hit CTRL+C
     if ros_pub.isShuttingDown():
         print ("Shutting Down")
         break
+
+q_log = np.array(q_log)
+qd_log = np.array(qd_log)
+qdd_log = np.array(qdd_log)
+time_log = np.array(time_log)
+
+print("Time log length:", len(time_log))
+print("Time log content:", time_log)
+
 
 plotJoint('position', time_log, q_log.T)
 ros_pub.deregister_node()
