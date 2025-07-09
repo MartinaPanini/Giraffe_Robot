@@ -102,16 +102,6 @@ q_postural = np.array([math.pi, 0.0, -math.pi, 0.0, 0.0])
 # solution of the numerical ik
 q_f, log_err, log_grad = ik(p_d, q_i, line_search = True, wrap = True)
 
-# q_ik, _, _, = kin.endeffectorInverseKinematicsLineSearch(p, conf.frame_name, q_i, verbose=True, use_error_as_termination_criteria=False, postural_task=False)
-# print("Desired End effector \n", p)
-
-# robot.computeAllTerms(q_ik, np.zeros(5))
-# p_ik = robot.framePlacement(q_ik, robot.model.getFrameId(conf.frame_name)).translation
-# task_diff = p_ik - p
-# print("Point obtained with IK solution \n", p_ik)
-# print("Error at the end-effector: \n", np.linalg.norm(task_diff))
-# print("Final joint positions\n", q_ik)
-
 # sanity check
 # compare solution with values obtained through direct kinematics
 T_wb, T_w1, T_w2, T_w3, T_w4, T_we, T_wt = directKinematics(q_f)
@@ -139,63 +129,52 @@ plt.show()
 ##################
 # Polinomial Trajectory
 ##################
+# Compute current pose at homing configuration
+current_pos = T_wt[:3, 3]
+R_current = T_wt[:3, :3]
+rpy_current = math_utils.rot2eul(R_current)
+current_roll = rpy_current[0]
+current_pose = np.append(current_pos, current_roll)
 
-q_log = []
-qd_log = []
-qdd_log = []
+pdes = np.array([1.0, 2.0, 1.0])
+θdes = 30 * math.pi / 180 # 30 gradi
+desired_pose = np.append(pdes, θdes)  # [x_des, y_des, z_des, roll_des]
+
+duration = 3.0  # Trajectory duration in seconds
+dt = 0.01       # Time step
+
+# Generate coefficients for each component
+coeffs = []
+for i in range(4):  # x, y, z, roll
+    c = coeffTraj(duration, current_pose[i], desired_pose[i])
+    coeffs.append(c)
+
 time_log = []
-
-tm.sleep(1.)
-ros_pub.publish(robot, conf.q0)
-tm.sleep(2.)
+traj = []  # Each entry: [x(t), y(t), z(t), roll(t)]
 
 t = 0.0
-duration = 3.0
-dt = conf.dt*conf.SLOW_FACTOR
-
-a_list = [coeffTraj(duration, conf.q0[i], q_f[i]) for i in range(5)]
-q = np.array([0.0, -math.pi, 0.0, 0.0, -math.pi/2])
-print("Diff between q and q_f:", np.linalg.norm(q - q_f))
-
 while t <= duration:
-    q = np.zeros(5)
-    qd = np.zeros(5)
-    qdd = np.zeros(5)
-
-    for i in range(5):
-        a = a_list[i]
-        q[i]   = a[0] + a[1]*t + a[2]*t**2 + a[3]*t**3 + a[4]*t**4 + a[5]*t**5
-        qd[i]  = a[1] + 2*a[2]*t + 3*a[3]*t**2 + 4*a[4]*t**3 + 5*a[5]*t**4
-        qdd[i] = 2*a[2] + 6*a[3]*t + 12*a[4]*t**2 + 20*a[5]*t**3
-
-    # Logging
-    q_log.append(q.copy())
-    qd_log.append(qd.copy())
-    qdd_log.append(qdd.copy())
+    point = []
+    for i in range(4):
+        a = coeffs[i]
+        pos = a[0] + a[1]*t + a[2]*t**2 + a[3]*t**3 + a[4]*t**4 + a[5]*t**5
+        point.append(pos)
+    traj.append(point)
     time_log.append(t)
-
-
     t += dt
-    #publish joint variables
-    ros_pub.publish(robot, q, qd)
-    ros_pub.add_marker(p)
-    ros.sleep(dt)
 
-    # stops the while loop if  you prematurely hit CTRL+C
-    if ros_pub.isShuttingDown():
-        print ("Shutting Down")
-        break
+traj = np.array(traj)
+plt.figure(figsize=(10, 8))
+labels = ['X Position', 'Y Position', 'Z Position', 'Roll']
+for i in range(4):
+    plt.subplot(4, 1, i+1)
+    plt.plot(time_log, traj[:, i])
+    plt.ylabel(labels[i])
+    plt.grid(True)
+plt.xlabel('Time (s)')
+plt.suptitle('Task Space Trajectory')
+plt.show()
 
-q_log = np.array(q_log)
-qd_log = np.array(qd_log)
-qdd_log = np.array(qdd_log)
-time_log = np.array(time_log)
-
-print("Time log length:", len(time_log))
-print("Time log content:", time_log)
-
-
-plotJoint('position', time_log, q_log.T)
 ros_pub.deregister_node()
 plt.show(block=True)
 

@@ -15,14 +15,12 @@ from utils.kin_dyn_utils import getM
 from utils.kin_dyn_utils import getg
 from utils.kin_dyn_utils import getC
 
-
 import kin_conf as conf
 
 os.system("killall rosmaster rviz")
 #instantiate graphic utils
 ros_pub = RosPub("giraffe_robot")
 robot = getRobotModel("giraffe", generate_urdf=True)
-
 
 # Init variables
 zero = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
@@ -57,7 +55,6 @@ frame_ee = robot.model.getFrameId(conf.frame_name)
 
 error = np.array([1, 1, 1, 1])
 
-
 # Main loop to simulate dynamics
 while (not ros.is_shutdown()) or any(i >= 0.01 for i in np.abs(error)):
        
@@ -83,10 +80,6 @@ while (not ros.is_shutdown()) or any(i >= 0.01 for i in np.abs(error)):
     print("Gravity: ", gp)
     print("-------------------------------")
 
-    # compute joint space inertia matrix with Pinocchio
-    # M = getM(q,robot,joint_types=joint_types)
-    # print("Inertia: ", M)
-
     # compute joint space intertia matrix with built-in pinocchio rnea
     M  = np.zeros((5,5))
     for i in range(5):
@@ -107,7 +100,6 @@ while (not ros.is_shutdown()) or any(i >= 0.01 for i in np.abs(error)):
     # Add a damping term
     #############################################
     # viscous friction to stop the motion
-    #damping = zero
     damping =  -0.1*qd
 
     end_stop_tau = np.zeros(5)
@@ -126,7 +118,6 @@ while (not ros.is_shutdown()) or any(i >= 0.01 for i in np.abs(error)):
     #############################################
     # Compute joint accelerations
     #############################################
-
     # compute accelerations (torques are zero!)
     # Pinocchio
     qdd = np.linalg.inv(M).dot(total_tau - hp)
