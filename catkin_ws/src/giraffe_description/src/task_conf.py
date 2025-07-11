@@ -18,17 +18,17 @@ frame_name = 'ee_link'         # Controlled frame
 
 # Guadagni per la parte di posizione (3D) del task
 Kp_pos = np.diag([100., 100., 100.])
-Kd_pos = np.diag([100., 80., 80.])
+Kd_pos = np.diag([10., 10., 10.])
 
 # Guadagni per la parte di orientamento (1D - Pitch) del task
 Kp_pitch = 10.0
-Kd_pitch = 10.0
+Kd_pitch = 2.0
 
 # Guadagni per il task secondario di postura (ridondanza)
 # Vengono usati per guidare dolcemente il robot verso una configurazione
 # coerente, calcolata all'inizio dello script principale.
 Kp_postural = 10.0
-Kd_postural = 15.0
+Kd_postural = 10.0
 
 # --------------------------------------------------------------------
 # --- CONFIGURAZIONI INIZIALI E DESIDERATE ---

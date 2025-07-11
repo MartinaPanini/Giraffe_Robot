@@ -15,6 +15,8 @@ from utils.math_tools import Math
 from utils.kin_dyn_utils import fifthOrderPolynomialTrajectory as coeffTraj
 import task_conf as conf
 
+import random 
+
 # Inizializzazione del modello del robot
 os.system("killall rosmaster rviz &> /dev/null")
 ros_pub = RosPub("giraffe_robot")
@@ -121,7 +123,7 @@ def generate_trajectory(t):
         c_pitch = coeffTraj(conf.traj_duration, pitch0, pitch_des_final)
         pitch_des = c_pitch[0] + c_pitch[1]*t + c_pitch[2]*t**2 + c_pitch[3]*t**3 + c_pitch[4]*t**4 + c_pitch[5]*t**5
         pitch_vel_des = c_pitch[1] + 2*c_pitch[2]*t + 3*c_pitch[3]*t**2 + 4*c_pitch[4]*t**3 + 5*c_pitch[5]*t**4
-        pitch_acc_des = 2*c_pitch[2] + 6*c_pitch[3]*t + 12*c_pitch[4]*t**2 + 20*c_pos[5]*t**3
+        pitch_acc_des = 2*c_pitch[2] + 6*c_pitch[3]*t + 12*c_pitch[4]*t**2 + 20*c_pitch[5]*t**3
 
     return p_des, v_des, a_des, pitch_des, pitch_vel_des, pitch_acc_des
 
@@ -241,7 +243,8 @@ print("Pitch Desiderato (deg):", np.degrees(pitch_des_final))
 
 # Grafici dei risultati
 plt.figure(figsize=(12, 10))
-plt.suptitle("Performance del Controllo 4D")
+#numero_casuale = random.randint(100, 999)
+plt.suptitle(f"Performance del Controllo 4D")
 
 # Tracking della posizione
 labels_pos = ['X', 'Y', 'Z']
