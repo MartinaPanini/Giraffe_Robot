@@ -133,6 +133,17 @@ while time < conf.exp_duration:
     if ros_pub.isShuttingDown():
         break
 
+# Calcola e stampa la posa finale dell'end effector
+pin.framesForwardKinematics(model, data, q)
+pin.updateFramePlacement(model, data, frame_id)
+final_placement = data.oMf[frame_id]
+final_position = final_placement.translation
+final_orientation = pin.rpy.matrixToRpy(final_placement.rotation)  # Conversione in angoli RPY
+
+print("\nFinal End Effector Position (m):", final_position)
+print("Final End Effector Orientation (RPY - rad):", final_orientation)
+print("Final End Effector Orientation (RPY - deg):", np.degrees(final_orientation))
+
 # Plot results
 plt.figure(figsize=(12, 8))
 plt.suptitle("Task-Space Control Performance")
