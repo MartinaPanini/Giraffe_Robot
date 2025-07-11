@@ -43,7 +43,13 @@ buffer_size = int(math.ceil(conf.exp_duration / conf.dt))
 q_log = np.zeros((robot.nq, buffer_size))
 p_log = np.zeros((3, buffer_size))
 p_des_log = np.zeros((3, buffer_size))
+rpy_log = np.zeros((3, buffer_size)) 
+rpy_des_log = np.zeros((3, buffer_size))
 time_log = np.zeros(buffer_size)
+
+# Desired orientation: -30 degree pitch (rotation around Y-axis) to point downwards.
+pitch_angle_rad = np.radians(-30.0)
+w_R_des = pin.rpy.rpyToMatrix(0, pitch_angle_rad, 0)
 
 # Generate trajectory with fixed start point (FIX 1)
 def generate_trajectory(t):
@@ -74,19 +80,32 @@ while time < conf.exp_duration:
     # Compute current state
     pin.forwardKinematics(model, data, q, qd)
     pin.updateFramePlacement(model, data, frame_id)
+   
+    J = pin.computeFrameJacobian(model, data, q, frame_id, pin.LOCAL_WORLD_ALIGNED)
     p = data.oMf[frame_id].translation
-    J = pin.computeFrameJacobian(model, data, q, frame_id, pin.LOCAL_WORLD_ALIGNED)[:3,:]
-    v = J @ qd
+    w_R_e = data.oMf[frame_id].rotation
+    twist = J @ qd
+    v = twist[:3]
+    omega = twist[3:]
     
     # Task-space error
     p_error = p_des - p
     v_error = v_des - v
+
+    e_R_des = w_R_e.T @ w_R_des
+    error_o_local = pin.log3(e_R_des)
+    w_error_o = w_R_e @ error_o_local
+    omega_error = -omega
     
     # Desired task acceleration (FIX 2: Ensure proper gains)
     a_task = a_des + conf.Kd_task @ v_error + conf.Kp_task @ p_error
+    alpha_task = conf.Kp_ori @ w_error_o + conf.Kd_ori @ omega_error
+    acc_des = np.hstack([a_task, alpha_task])
     
     # Compute Jacobian and its time derivative
-    Jdot = pin.getFrameJacobianTimeVariation(model, data, frame_id, pin.LOCAL_WORLD_ALIGNED)[:3,:]
+    # Full 6D Inverse Dynamics
+    Jdot = pin.getFrameJacobianTimeVariation(model, data, frame_id, pin.LOCAL_WORLD_ALIGNED)
+    Jdotqd = Jdot @ qd
     
     # Compute dynamics
     M = pin.crba(model, data, q)
@@ -94,15 +113,15 @@ while time < conf.exp_duration:
     
     # Task-space inverse dynamics
     Minv = np.linalg.inv(M)
-    Lambda = np.linalg.inv(J @ Minv @ J.T + 1e-6*np.eye(3))
+    Lambda = np.linalg.inv(J @ Minv @ J.T + 1e-6*np.eye(6))
     Jbar = Minv @ J.T @ Lambda
     
     # FIX 3: Proper null-space projection
     q_postural = conf.Kp_postural * (conf.q0 - q) - conf.Kd_postural * qd
-    N = np.eye(robot.nv) - J.T @ np.linalg.pinv(J.T)  # Proper null-space projection
+    N = np.eye(robot.nv) - J.T @ np.linalg.pinv(J.T, 1e-4)  # Proper null-space projection
     
     # Combined desired acceleration
-    qdd_des = Jbar @ (a_task - Jdot @ qd) + N @ Minv @ q_postural  # FIX 4: Include Minv
+    qdd_des = Jbar @ (acc_des - Jdotqd) + N @ q_postural  # FIX 4: Include Minv
     
     # Torque command
     tau = M @ qdd_des + h
@@ -121,6 +140,8 @@ while time < conf.exp_duration:
     q_log[:, log_counter] = q
     p_log[:, log_counter] = p
     p_des_log[:, log_counter] = p_des
+    rpy_log[:, log_counter] = pin.rpy.matrixToRpy(w_R_e)
+    rpy_des_log[:, log_counter] = pin.rpy.matrixToRpy(w_R_des)
     log_counter += 1
     
     # Update time
@@ -138,18 +159,19 @@ pin.framesForwardKinematics(model, data, q)
 pin.updateFramePlacement(model, data, frame_id)
 final_placement = data.oMf[frame_id]
 final_position = final_placement.translation
-final_orientation = pin.rpy.matrixToRpy(final_placement.rotation)  # Conversione in angoli RPY
+final_orientation_rpy = pin.rpy.matrixToRpy(final_placement.rotation)
+desired_orientation_rpy = pin.rpy.matrixToRpy(w_R_des)
 
 print("\nFinal End Effector Position (m):", final_position)
-print("Final End Effector Orientation (RPY - rad):", final_orientation)
-print("Final End Effector Orientation (RPY - deg):", np.degrees(final_orientation))
+print("Final End Effector Orientation (RPY - deg):", np.degrees(final_orientation_rpy))
+print("Desired End Effector Orientation (RPY - deg):", np.degrees(desired_orientation_rpy))
 
-# Plot results
-plt.figure(figsize=(12, 8))
+# Plotting
+plt.figure(figsize=(12, 12))
 plt.suptitle("Task-Space Control Performance")
 
 # Position tracking
-plt.subplot(2, 1, 1)
+plt.subplot(3, 1, 1)
 labels = ['X', 'Y', 'Z']
 for i in range(3):
     plt.plot(time_log[:log_counter], p_log[i, :log_counter], label=f'Actual {labels[i]}')
@@ -158,8 +180,18 @@ plt.ylabel('Position [m]')
 plt.legend()
 plt.grid(True)
 
+# Orientation tracking (RPY)
+plt.subplot(3, 1, 2)
+labels = ['Roll', 'Pitch', 'Yaw']
+for i in range(3):
+    plt.plot(time_log[:log_counter], np.degrees(rpy_log[i, :log_counter]), label=f'Actual {labels[i]}')
+    plt.plot(time_log[:log_counter], np.degrees(rpy_des_log[i, :log_counter]), '--', label=f'Desired {labels[i]}')
+plt.ylabel('Orientation [deg]')
+plt.legend()
+plt.grid(True)
+
 # Configuration tracking
-plt.subplot(2, 1, 2)
+plt.subplot(3, 1, 3)
 for i in range(robot.nq):
     plt.plot(time_log[:log_counter], q_log[i, :log_counter], label=f'Joint {i+1}')
 plt.xlabel('Time [s]')
@@ -167,10 +199,10 @@ plt.ylabel('Joint Angles [rad]')
 plt.legend()
 plt.grid(True)
 
-plt.tight_layout()
+plt.tight_layout(rect=[0, 0, 1, 0.96])
 plt.show()
 
-input("Premi Invio per terminare...")
+input("Press Enter to terminate...")
 
 print("Task-space control completed.")
 ros_pub.deregister_node()
