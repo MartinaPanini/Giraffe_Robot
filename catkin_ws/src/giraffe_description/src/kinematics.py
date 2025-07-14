@@ -91,17 +91,20 @@ ros_pub.deregister_node()
 ##################
 
 # desired task space position
-p = np.array([1,2,1])
+p = np.array([2., 1., 2.])  # vicino al DK corrente
+
 pitch_des_rad = conf.pitch_des_deg * math.pi / 180.0
 p_d = np.hstack([p, pitch_des_rad])
 
 # initial guess
-q_i  = np.array([0.0, -np.pi/3, np.pi/4, -np.pi/3, 0.0])
+q_i = conf.qhome.copy()
 
-q_postural = np.array([math.pi, 0.0, -math.pi, 0.0, 0.0])
+
+#q_postural = np.array([math.pi, 0.0, -math.pi, 0.0, 0.0])
+q_postural = None
 
 # Update the call to ik() to include the postural task
-q_f, log_err, log_grad = ik(p_d, q_i, line_search=True, wrap=True, q_postural=q_postural)
+q_f, log_err, log_grad = ik(p_d, q_i, line_search=True, wrap=True)
 
 # sanity check
 # compare solution with values obtained through direct kinematics
@@ -115,6 +118,10 @@ print("Desired End effector pose (x,y,z,pitch)\n", p_d)
 print("Point obtained with IK solution \n", final_pose)
 print("Norm of error at the end-effector position: \n", np.linalg.norm(task_diff))
 print("Final joint positions\n", q_f)
+print("\n------------------------------------------")
+print("Position error:", task_diff[:3])
+print("Pitch error:", task_diff[3])
+
 
 # Plots
 plt.subplot(2, 1, 1)

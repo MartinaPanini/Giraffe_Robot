@@ -195,7 +195,7 @@ def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postura
     """
     epsilon = 1e-6
     lambda_ = 1e-8
-    max_iter = 2000
+    max_iter = 10000
     beta = 0.5
     iter = 0
 
