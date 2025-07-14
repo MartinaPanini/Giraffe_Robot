@@ -21,7 +21,7 @@ from utils.math_tools import Math
 import matplotlib.pyplot as plt
 from utils.common_functions import plotJoint
 
-import kin_conf as conf
+import conf as conf
 
 #os.system("killall rosmaster rviz")
 #instantiate graphic utils

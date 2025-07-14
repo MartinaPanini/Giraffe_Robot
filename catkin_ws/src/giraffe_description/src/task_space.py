@@ -13,7 +13,7 @@ from utils.common_functions import *
 from utils.ros_publish import RosPub
 from utils.math_tools import Math
 from utils.kin_dyn_utils import fifthOrderPolynomialTrajectory as coeffTraj
-import task_conf as conf
+import conf as conf
 
 import random 
 
