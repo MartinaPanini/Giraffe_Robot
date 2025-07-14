@@ -192,8 +192,6 @@ def geometric2analyticJacobian(J,T_0e):
 def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postural=None, kp_postural=0.5):
     """
     Computes the inverse kinematics for a desired 4D pose (x, y, z, pitch).
-
-    This final version includes a robust backtracking line search to ensure convergence.
     """
     epsilon = 1e-6
     lambda_ = 1e-8
@@ -210,10 +208,11 @@ def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postura
 
         p_e = T_0e[:3, 3]
         try:
-            rpy = pin.rpy.matrixToRpy(T_0e[:3, 3])
+            rpy = pin.rpy.matrixToRpy(T_0e[:3, :3])
         except:
             rpy = np.zeros(3)
 
+        # FIX 2: Use correct pitch component (rpy[1])
         current_pose_4d = np.array([p_e[0], p_e[1], p_e[2], rpy[1]])
 
         e_pos = current_pose_4d[:3] - p_d[:3]
@@ -222,7 +221,10 @@ def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postura
         e_bar = np.hstack([e_pos, e_ori_wrapped])
 
         J_a = geometric2analyticJacobian(J_geom, T_0e)
-        J_bar = np.vstack([J_a[0:3, :], J_a[4, :]])
+        
+        # FIX 1: Use correct row for pitch (index 3 instead of 4)
+        # FIX 3: Properly stack position and pitch components
+        J_bar = np.vstack([J_a[0:3, :], J_a[3, :]])  # [x, y, z, pitch]
 
         grad = J_bar.T @ e_bar
 
@@ -247,7 +249,7 @@ def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postura
             dq_secondary = kp_postural * e_postural
             dq += N @ dq_secondary
 
-        # --- FIX: Robust Backtracking Line Search ---
+        # Backtracking Line Search
         alpha = 1.0
         initial_error_norm = np.linalg.norm(e_bar)
 
@@ -257,7 +259,7 @@ def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postura
                 T_0e1 = directKinematics(q_new)[5]
                 p_e1 = T_0e1[:3, 3]
                 try:
-                    rpy1 = pin.rpy.matrixToRpy(T_0e1[:3, 3])
+                    rpy1 = pin.rpy.matrixToRpy(T_0e1[:3, :3])
                 except:
                     rpy1 = np.zeros(3)
 
@@ -273,7 +275,6 @@ def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postura
                 alpha *= beta
         else:
             q0 += dq
-        # --- END FIX ---
 
         iter += 1
 
@@ -480,6 +481,3 @@ def getC(q,qd,robot, joint_types = ['revolute', 'revolute','revolute','revolute'
     return C      
 
     
-
-
-
