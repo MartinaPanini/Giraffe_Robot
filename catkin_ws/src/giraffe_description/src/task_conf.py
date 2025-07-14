@@ -9,7 +9,7 @@ import numpy as np
 # Controller parameters
 dt = 0.001                     # Controller time step [s]
 exp_duration = 10.0            # Simulation duration [s]
-SLOW_FACTOR = 1                # Real-time factor
+SLOW_FACTOR = 1.5                # Real-time factor
 frame_name = 'ee_link'         # Controlled frame
 
 # --------------------------------------------------------------------

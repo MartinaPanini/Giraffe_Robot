@@ -5,17 +5,14 @@
   <xacro:property name="M_PI" value="3.1415926535897931" />
   <xacro:property name="ceiling_height" value="4.0" />
   <xacro:property name="arm_segment_length" value="0.5" />
-  <xacro:property name="prismatic_max_extension" value="3.0" />  <!-- Reduced from 6.5m -->
+  <xacro:property name="prismatic_max_extension" value="6.5" />  
   <xacro:property name="mic_arm_length" value="0.3" />
 
   <!-- Materials -->
-  <material name="gray"><color rgba="0.5 0.5 0.5 1"/></material>
-  <material name="red"><color rgba="1 0 0 1"/></material>
-  <material name="green"><color rgba="0 1 0 1"/></material>  <!-- Fixed color -->
-  <material name="blue"><color rgba="0 0 1 1"/></material>   <!-- Fixed color -->
-  <material name="yellow"><color rgba="1 1 0 1"/></material>
   <material name="black"><color rgba="0 0 0 1"/></material>
   <material name="white"><color rgba="1 1 1 1"/></material>
+  <material name="dark grey"><color rgba="0 0 0 0.7"/></material>
+  <material name="light grey"><color rgba="0 0 0 0.5"/></material>
 
   <link name="world"/>
 
@@ -23,7 +20,7 @@
   <link name="base_link">
     <visual>
       <geometry><box size="0.2 0.2 0.05"/></geometry>
-      <material name="gray"/>
+      <material name="white"/>
     </visual>
     <collision>
       <geometry><box size="0.2 0.2 0.05"/></geometry>
@@ -46,15 +43,14 @@
   <link name="link1">
     <visual>
       <geometry><cylinder length="0.1" radius="0.05"/></geometry>
-      <material name="red"/>
+      <material name="dark grey"/>
     </visual>
     <collision>
       <geometry><cylinder length="0.1" radius="0.05"/></geometry>
     </collision>
     <inertial>
-      <mass value="1.0"/>  <!-- Increased from 0.3 -->
+      <mass value="1.0"/>  
       <origin xyz="0 0 0"/>
-      <!-- Ixx = Iyy = 1/12*m*(3*r² + h²), Izz = 1/2*m*r² -->
       <inertia ixx="0.00046" ixy="0" ixz="0" iyy="0.00046" iyz="0" izz="0.00125"/>
     </inertial>
   </link>
@@ -65,7 +61,7 @@
     <origin xyz="0 0 0.025" rpy="0 0 0"/>  <!-- Offset from base -->
     <axis xyz="0 0 1"/>
     <limit lower="-${M_PI}" upper="${M_PI}" effort="100" velocity="1"/>
-    <dynamics damping="0.5"/>  <!-- Added damping -->
+    <dynamics damping="0.5"/>  
   </joint>
 
   <!-- Link2: Tilt - Corrected inertia and COM -->
@@ -73,7 +69,7 @@
     <visual>
       <geometry><cylinder length="${arm_segment_length}" radius="0.03"/></geometry>
       <origin xyz="${arm_segment_length/2} 0 0" rpy="0 ${M_PI/2} 0"/>
-      <material name="green"/>
+      <material name="dark grey"/>
     </visual>
     <collision>
       <origin xyz="${arm_segment_length/2} 0 0" rpy="0 ${M_PI/2} 0"/>
@@ -97,18 +93,20 @@
   </joint>
 
   <!-- Link3: Prismatic - Increased mass and corrected inertia -->
-  <link name="link3">
+<link name="link3">
     <visual>
-      <geometry><box size="0.1 0.1 0.1"/></geometry>  <!-- More realistic than sphere -->
-      <material name="blue"/>
+      <geometry><cylinder length="${prismatic_max_extension}" radius="0.03"/></geometry>
+      <origin xyz="-${prismatic_max_extension / 2.0} 0 0" rpy="0 ${M_PI/2} 0"/>
+      <material name="dark grey"/>
     </visual>
     <collision>
-      <geometry><box size="0.1 0.1 0.1"/></geometry>
+      <geometry><cylinder length="${prismatic_max_extension}" radius="0.03"/></geometry>
+      <origin xyz="-${prismatic_max_extension / 2.0} 0 0" rpy="0 ${M_PI/2} 0"/>
     </collision>
     <inertial>
-      <mass value="1.5"/>  <!-- Increased from 0.3 -->
-      <origin xyz="0 0 0"/>
-      <inertia ixx="0.0025" ixy="0" ixz="0" iyy="0.0025" iyz="0" izz="0.0025"/>
+      <mass value="1.5"/>
+      <origin xyz="-${prismatic_max_extension / 2.0} 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0004" ixy="0" ixz="0" iyy="1.1252" iyz="0" izz="1.1252"/>
     </inertial>
   </link>
 
@@ -124,9 +122,9 @@
   <!-- Link4: Microphone bar - Corrected inertia -->
   <link name="link4">
     <visual>
-      <geometry><cylinder length="${mic_arm_length}" radius="0.01"/></geometry>
+      <geometry><cylinder length="${mic_arm_length}" radius="0.025"/></geometry>
       <origin xyz="${mic_arm_length/2} 0 0" rpy="0 ${M_PI/2} 0"/>
-      <material name="yellow"/>
+      <material name="light grey"/>
     </visual>
     <collision>
       <origin xyz="${mic_arm_length/2} 0 0" rpy="0 ${M_PI/2} 0"/>
@@ -140,19 +138,19 @@
     </inertial>
   </link>
 
-  <joint name="joint4" type="revolute">
+<joint name="joint4" type="revolute">
     <parent link="link3"/>
     <child link="link4"/>
-    <origin xyz="0.05 0 0" rpy="0 0 0"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <limit lower="-${M_PI/2}" upper="${M_PI/2}" effort="50" velocity="1"/>
-    <dynamics damping="0.3"/>  <!-- Added damping -->
+    <dynamics damping="0.3"/>
   </joint>
 
   <!-- End-effector: microphone - Corrected inertia -->
   <link name="ee_link">
     <visual>
-      <geometry><box size="0.03 0.03 0.03"/></geometry>
+      <geometry><sphere radius="0.025"/></geometry>
       <material name="black"/>
     </visual>
     <visual>
@@ -163,15 +161,14 @@
     <visual>
       <geometry><sphere radius="0.015"/></geometry>
       <origin xyz="0 0 -0.2" rpy="0 0 0"/>
-      <material name="red"/>
+      <material name="black"/>
     </visual>
     <collision>
-      <geometry><sphere radius="0.03"/></geometry>  <!-- Simplified collision -->
+      <geometry><sphere radius="0.03"/></geometry>  
     </collision>
     <inertial>
-      <mass value="0.3"/>  <!-- Increased from 0.05 -->
+      <mass value="0.3"/>  
       <origin xyz="0 0 -0.1"/>
-      <!-- Approximate as point mass: I = m*d² -->
       <inertia ixx="0.003" ixy="0" ixz="0" iyy="0.003" iyz="0" izz="0.003"/>
     </inertial>
   </link>
@@ -182,7 +179,7 @@
     <origin xyz="${mic_arm_length} 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <limit lower="-${M_PI/2}" upper="${M_PI/2}" effort="50" velocity="1"/>
-    <dynamics damping="0.2"/>  <!-- Added damping -->
+    <dynamics damping="0.2"/> 
   </joint>
 
 </robot>
