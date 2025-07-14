@@ -92,25 +92,27 @@ ros_pub.deregister_node()
 
 # desired task space position
 p = np.array([1,2,1])
-p_d = np.array([1,2,1,0])
+pitch_des_rad = conf.pitch_des_deg * math.pi / 180.0
+p_d = np.hstack([p, pitch_des_rad])
 
 # initial guess
-q_i  = np.array([0.0, -math.pi, 0.0, 0.0, -math.pi/2])
+q_i  = np.array([0.0, -np.pi/3, np.pi/4, -np.pi/3, 0.0])
 
 q_postural = np.array([math.pi, 0.0, -math.pi, 0.0, 0.0])
 
-# solution of the numerical ik
-q_f, log_err, log_grad = ik(p_d, q_i, line_search = True, wrap = True)
+# Update the call to ik() to include the postural task
+q_f, log_err, log_grad = ik(p_d, q_i, line_search=True, wrap=True, q_postural=q_postural)
 
 # sanity check
 # compare solution with values obtained through direct kinematics
 T_wb, T_w1, T_w2, T_w3, T_w4, T_we, T_wt = directKinematics(q_f)
-rpy = math_utils.rot2eul(T_wt[:3,:3])
-task_diff = p_d - np.hstack((T_wt[:3,3],rpy[0]))
+rpy = pin.rpy.matrixToRpy(T_wt[:3,:3])
+final_pose = np.hstack((T_wt[:3,3], rpy[1])) # Check pitch (rpy[1])
+task_diff = p_d - final_pose
 
 print("\n------------------------------------------")
-print("Desired End effector \n", p)
-print("Point obtained with IK solution \n", np.hstack((T_wt[:3, 3], rpy[0])))
+print("Desired End effector pose (x,y,z,pitch)\n", p_d)
+print("Point obtained with IK solution \n", final_pose)
 print("Norm of error at the end-effector position: \n", np.linalg.norm(task_diff))
 print("Final joint positions\n", q_f)
 

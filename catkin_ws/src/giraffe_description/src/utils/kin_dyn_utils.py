@@ -189,34 +189,39 @@ def geometric2analyticJacobian(J,T_0e):
     J_a = T_a @ J
     return J_a
 
-def numericalInverseKinematics(p_d, q0, line_search = False, wrap = False):
-    math_utils = Math()
-    epsilon = 1e-6 
-    lambda_ = 1e-8 
-    max_iter = 200
+def numericalInverseKinematics(p_d, q0, line_search=False, wrap=False, q_postural=None, kp_postural=0.5):
+    """
+    Computes the inverse kinematics for a desired 4D pose (x, y, z, pitch).
+
+    This final version includes a robust backtracking line search to ensure convergence.
+    """
+    epsilon = 1e-6
+    lambda_ = 1e-8
+    max_iter = 2000
     beta = 0.5
     iter = 0
-    alpha = 1 
+
     log_grad = []
     log_err = []
 
     while True:
-        J_geom,_,_,_,_,_ = computeEndEffectorJacobian(q0)
-        T_0e = directKinematics(q0)[-1]
+        J_geom, _, _, _, _, _ = computeEndEffectorJacobian(q0)
+        T_0e = directKinematics(q0)[5]
 
-        p_e = T_0e[:3,3]
+        p_e = T_0e[:3, 3]
         try:
-            rpy = pin.rpy.matrixToRpy(T_0e[:3,:3])
+            rpy = pin.rpy.matrixToRpy(T_0e[:3, 3])
         except:
             rpy = np.zeros(3)
 
-        # Il task è 4D: posizione (3) + pitch (1)
-        # L'errore deve essere calcolato sul pitch, non sul roll.
         current_pose_4d = np.array([p_e[0], p_e[1], p_e[2], rpy[1]])
-        e_bar = current_pose_4d - p_d
+
+        e_pos = current_pose_4d[:3] - p_d[:3]
+        e_ori = current_pose_4d[3] - p_d[3]
+        e_ori_wrapped = (e_ori + np.pi) % (2 * np.pi) - np.pi
+        e_bar = np.hstack([e_pos, e_ori_wrapped])
 
         J_a = geometric2analyticJacobian(J_geom, T_0e)
-        # Selezioniamo le righe del Jacobiano per il task 4D (x,y,z, pitch)
         J_bar = np.vstack([J_a[0:3, :], J_a[4, :]])
 
         grad = J_bar.T @ e_bar
@@ -224,38 +229,54 @@ def numericalInverseKinematics(p_d, q0, line_search = False, wrap = False):
         log_grad.append(np.linalg.norm(grad))
         log_err.append(np.linalg.norm(e_bar))
 
-        if np.linalg.norm(grad) < epsilon:
-            print("IK Convergence achieved!, norm(grad) :", np.linalg.norm(grad) )
-            print("Inverse kinematics solved in {} iterations".format(iter))     
+        if np.linalg.norm(e_bar) < epsilon:
+            print("IK Convergence achieved!, norm(error) :", np.linalg.norm(e_bar))
+            print("Inverse kinematics solved in {} iterations".format(iter))
             break
-        if iter >= max_iter:                
+        if iter >= max_iter:
             print("Warning: Max number of iterations reached. Error is: ", np.linalg.norm(e_bar))
             break
-            
+
         JtJ_inv = np.linalg.inv(J_bar.T @ J_bar + lambda_ * np.identity(J_bar.shape[1]))
         dq = - JtJ_inv @ grad
 
-        if not line_search:
-            q0 = q0 + dq * alpha
-        else:
-            # Line search (semplificato)
-            q1 = q0 + dq*alpha
-            T_0e1 = directKinematics(q1)[-1]
-            p_e1 = T_0e1[:3,3]
-            try:
-                rpy1 = pin.rpy.matrixToRpy(T_0e1[:3,:3])
-            except:
-                rpy1 = np.zeros(3)
-            current_pose_4d_new = np.array([p_e1[0], p_e1[1], p_e1[2], rpy1[1]])
-            e_bar_new = current_pose_4d_new - p_d
+        if q_postural is not None:
+            J_bar_pinv = np.linalg.pinv(J_bar)
+            N = np.eye(J_bar.shape[1]) - J_bar_pinv @ J_bar
+            e_postural = q_postural - q0
+            dq_secondary = kp_postural * e_postural
+            dq += N @ dq_secondary
 
-            if np.linalg.norm(e_bar_new) > np.linalg.norm(e_bar):
-                 alpha *= beta
-            else:
-                 q0 = q1
+        # --- FIX: Robust Backtracking Line Search ---
+        alpha = 1.0
+        initial_error_norm = np.linalg.norm(e_bar)
+
+        if line_search:
+            while alpha > 1e-5:
+                q_new = q0 + alpha * dq
+                T_0e1 = directKinematics(q_new)[5]
+                p_e1 = T_0e1[:3, 3]
+                try:
+                    rpy1 = pin.rpy.matrixToRpy(T_0e1[:3, 3])
+                except:
+                    rpy1 = np.zeros(3)
+
+                current_pose_4d_new = np.array([p_e1[0], p_e1[1], p_e1[2], rpy1[1]])
+                e_pos_new = current_pose_4d_new[:3] - p_d[:3]
+                e_ori_new = current_pose_4d_new[3] - p_d[3]
+                e_ori_wrapped_new = (e_ori_new + np.pi) % (2 * np.pi) - np.pi
+                e_bar_new = np.hstack([e_pos_new, e_ori_wrapped_new])
+
+                if np.linalg.norm(e_bar_new) < initial_error_norm:
+                    q0 = q_new
+                    break
+                alpha *= beta
+        else:
+            q0 += dq
+        # --- END FIX ---
 
         iter += 1
-           
+
     if wrap:
         for i in range(len(q0)):
             q0[i] = (q0[i] + np.pi) % (2 * np.pi) - np.pi
