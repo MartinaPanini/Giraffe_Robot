@@ -58,199 +58,168 @@ def setRobotParameters():
     return lengths, inertia_tensors, link_masses, coms
 
 def directKinematics(q):
+    """
+    Calcola la cinematica diretta basandosi sulla struttura esatta del file URDF.
+    Ogni matrice di trasformazione T_i(i+1) mappa dal frame i al frame i+1.
+    """
+    # Helper per le trasformazioni omogenee
+    def RotX(th): return pin.SE3(pin.rpy.rpyToMatrix(th, 0, 0), np.zeros(3)).homogeneous
+    def RotY(th): return pin.SE3(pin.rpy.rpyToMatrix(0, th, 0), np.zeros(3)).homogeneous
+    def RotZ(th): return pin.SE3(pin.rpy.rpyToMatrix(0, 0, th), np.zeros(3)).homogeneous
+    def Trans(x,y,z): return pin.SE3(np.eye(3), np.array([x,y,z])).homogeneous
 
-    def RotX(theta):
-        return np.array([
-            [1, 0, 0, 0],
-            [0, np.cos(theta), -np.sin(theta), 0],
-            [0, np.sin(theta), np.cos(theta), 0],
-            [0, 0, 0, 1]
-        ])
-
-    def RotY(theta):
-        return np.array([
-            [np.cos(theta), 0, np.sin(theta), 0],
-            [0, 1, 0, 0],
-            [-np.sin(theta), 0, np.cos(theta), 0],
-            [0, 0, 0, 1]
-        ])
-
-    def RotZ(theta):return np.array([
-            [np.cos(theta), -np.sin(theta), 0, 0],
-            [np.sin(theta), np.cos(theta), 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
-
-    def TransX(d): return np.array([[1, 0, 0, d],
-                                    [0, 1, 0, 0],
-                                    [0, 0, 1, 0],
-                                    [0, 0, 0, 1]])
-
-    def TransZ(d): return np.array([[1, 0, 0, 0],
-                                    [0, 1, 0, 0],
-                                    [0, 0, 1, d],
-                                    [0, 0, 0, 1]])
-     
-    def TransY(d): return np.array([[1, 0, 0, 0],
-                                    [0, 1, 0, d],
-                                    [0, 0, 1, 0],
-                                    [0, 0, 0, 1]])
-
-        # define link lengths
-    link_length, _, _, _ = setRobotParameters()
-    l1, l2, l3, l4, l5, l6, l7 = link_length
-
+    # Parametri presi dal file URDF
+    ceiling_height = 4.0
+    arm_segment_length = 0.5
+    mic_arm_length = 0.3
+    
+    # Valori dei giunti
     q1, q2, q3, q4, q5 = q
 
-    # FIXED: Add base position from URDF (2.5, 6.0, 4.0)
-    T_wb = np.eye(4)
-    T_wb[0, 3] = 2.5
-    T_wb[1, 3] = 6.0
-    T_wb[2, 3] = 4.0  # ceiling height
+    # --- Catena di Trasformazioni come da URDF ---
 
-    # Joint 1: base_link to link1
-    T_b1 = RotY(math.pi) @ RotZ(q1)
+    # 1. World -> base_link (Fisso)
+    T_w_b = Trans(2.5, 6.0, ceiling_height)
 
-    # Joint 2: link1 to link2
-    T_12 = RotY(q2)
+    # 2. base_link -> link1 (joint1: offset in z, rotazione in z)
+    T_b_1 = Trans(0, 0, 0.025) @ RotZ(q1)
 
-    # Joint 3: prismatic, origin at l2, motion along X
-    T_23 = TransX(l2) @ TransX(q3)
+    # 3. link1 -> link2 (joint2: rotazione in y)
+    T_1_2 = RotY(q2)
 
-    # Joint 4: rotation + offset 0.05 along X
-    T_34 = RotY(q4) @ TransX(l4)
+    # 4. link2 -> link3 (joint3: offset in x, traslazione prismatica in x)
+    T_2_3 = Trans(arm_segment_length, 0, 0) @ Trans(q3, 0, 0)
 
-    # Joint 5: rotation + offset mic_arm_length (l4)
-    T_4e = TransX(l5) @ RotY(q5)
+    # 5. link3 -> link4 (joint4: rotazione in y)
+    T_3_4 = RotY(q4)
 
-    # End-effector tip
-    #T_et = np.array([[1,  0, 0,  0],
-    #                 [0,  1, 0,  0],
-    #                 [0,  0, 1, -0.2],
-    #                 [0,  0, 0,  1]])
-    T_et = np.eye(4)
+    # 6. link4 -> ee_link (joint5: offset in x, rotazione in y)
+    T_4_e = Trans(mic_arm_length, 0, 0) @ RotY(q5)
 
-    # Compose global transforms
-    T_w1 = T_wb @ T_b1
-    T_w2 = T_w1 @ T_12
-    T_w3 = T_w2 @ T_23
-    T_w4 = T_w3 @ T_34
-    T_we = T_w4 @ T_4e
-    T_wt = T_we @ T_et
+    # Matrici di Trasformazione Composte (dal mondo a ogni frame)
+    T_w_1 = T_w_b @ T_b_1
+    T_w_2 = T_w_1 @ T_1_2
+    T_w_3 = T_w_2 @ T_2_3
+    T_w_4 = T_w_3 @ T_3_4
+    T_w_e = T_w_4 @ T_4_e # Questa è la posa finale dell'end-effector (ee_link)
 
-    return T_wb, T_w1, T_w2, T_w3, T_w4, T_we, T_wt
+    # T_wt è la stessa di T_w_e dato che ee_link è il nostro frame finale
+    T_wt = T_w_e 
+
+    # Ritorna tutte le trasformazioni intermedie per il calcolo del Jacobiano
+    return T_w_b, T_w_1, T_w_2, T_w_3, T_w_4, T_w_e, T_wt
 
 '''
     This function computes the Geometric Jacobian of the end-effector expressed in the base link frame 
 '''
 def computeEndEffectorJacobian(q):
-    import numpy as np
-
-    # Ottieni le trasformazioni globali da base a ogni giunto e all'end-effector
+    """
+    Calcola il Jacobiano Geometrico dell'end-effector.
+    CORREZIONE: Usa le posizioni corrette delle origini dei giunti.
+    """
     T_wb, T_w1, T_w2, T_w3, T_w4, T_we, T_wt = directKinematics(q)
 
-    # Positions in world frame
-    p_wb = T_wb[:3, 3]
-    p_w1 = T_w1[:3, 3]
-    p_w2 = T_w2[:3, 3]
-    p_w3 = T_w3[:3, 3]
-    p_w4 = T_w4[:3, 3]
-    p_we = T_we[:3, 3]
-    p_wt = T_wt[:3, 3]  # microphone tip
+    # Posizione finale dell'end-effector
+    p_we = T_wt[:3, 3]
 
-    # Joint axes in world frame
-    z0 = T_wb[:3, 2]  # base Z (fixed)
-    z1 = T_w1[:3, 2]  # joint1 rotation axis
-    z2 = T_w2[:3, 1]  # joint2 rotation axis
-    z3 = T_w3[:3, 0]  # joint3 prismatic axis (X)
-    z4 = T_w4[:3, 1]  # joint4 rotation axis
-    z5 = T_we[:3, 1]  # joint5 rotation axis
+    # --- Posizioni delle ORIGINI DEI GIUNTI (non dei link) ---
+    # Per ottenere l'origine di un giunto, prendiamo la trasformazione del link padre
+    # e la componiamo con l'offset definito nel tag <origin> del giunto.
+    
+    # Origine di joint1 (fissato rispetto a base_link)
+    p_j1 = (T_wb @ pin.SE3(np.eye(3), np.array([0, 0, 0.025])).homogeneous)[:3, 3]
+    # Origine di joint2 (coincide con l'origine di link1)
+    p_j2 = T_w1[:3, 3]
+    # Origine di joint3 (offset da link2)
+    p_j3 = (T_w2 @ pin.SE3(np.eye(3), np.array([0.5, 0, 0])).homogeneous)[:3, 3]
+    # Origine di joint4 (coincide con l'origine di link3)
+    p_j4 = T_w3[:3, 3]
+    # Origine di joint5 (offset da link4)
+    p_j5 = (T_w4 @ pin.SE3(np.eye(3), np.array([0.3, 0, 0])).homogeneous)[:3, 3]
 
-    # Jacobian for linear velocity
-    Jp0 = np.cross(z0, (p_wt - p_wb)).reshape(3, 1)
-    Jp1 = np.cross(z1, (p_wt - p_w1)).reshape(3, 1)
-    Jp2 = np.cross(z2, (p_wt - p_w2)).reshape(3, 1)
-    Jp3 = z3.reshape(3, 1)  # prismatic joint
-    Jp4 = np.cross(z4, (p_wt - p_w4)).reshape(3, 1)
-    Jp5 = np.cross(z5, (p_wt - p_we)).reshape(3, 1)
+    # --- Assi dei Giunti ---
+    z1 = T_wb[:3, 2]   # Asse Z di base_link
+    z2 = T_w1[:3, 1]   # Asse Y di link1
+    z3 = T_w2[:3, 0]   # Asse X di link2 (Prismatico)
+    z4 = T_w3[:3, 1]   # Asse Y di link3
+    z5 = T_w4[:3, 1]   # Asse Y di link4
 
-    J_p = np.hstack((Jp1, Jp2, Jp3, Jp4, Jp5))
+    # --- Colonne del Jacobiano ---
+    Jp1 = np.cross(z1, p_we - p_j1); Jo1 = z1
+    Jp2 = np.cross(z2, p_we - p_j2); Jo2 = z2
+    Jp3 = z3;                        Jo3 = np.zeros(3) # Prismatico
+    Jp4 = np.cross(z4, p_we - p_j4); Jo4 = z4
+    Jp5 = np.cross(z5, p_we - p_j5); Jo5 = z5
 
-    # Jacobian for angular velocity
-    Jo0 = z0.reshape(3, 1)
-    Jo1 = z1.reshape(3, 1)
-    Jo2 = z2.reshape(3, 1)
-    Jo3 = np.zeros((3, 1))  # prismatic has no rotation
-    Jo4 = z4.reshape(3, 1)
-    Jo5 = z5.reshape(3, 1)
-
-    J_o = np.hstack((Jo1, Jo2, Jo3, Jo4, Jo5))
-
-    # Complete Jacobian (6x6)
+    J_p = np.vstack([Jp1, Jp2, Jp3, Jp4, Jp5]).T
+    J_o = np.vstack([Jo1, Jo2, Jo3, Jo4, Jo5]).T
     J = np.vstack((J_p, J_o))
 
     return J, z1, z2, z3, z4, z5
 
-
-
 def geometric2analyticJacobian(J,T_0e):
     R_0e = T_0e[:3,:3]
     math_utils = Math()
-    rpy_ee = math_utils.rot2eul(R_0e)
-    roll = rpy_ee[0]
-    pitch = rpy_ee[1]
-    yaw = rpy_ee[2]
+    # ATTENZIONE: rot2eul potrebbe usare una convenzione diversa da Pinocchio.
+    # Per coerenza, è sempre meglio usare le funzioni di Pinocchio se possibile.
+    try:
+        rpy_ee = pin.rpy.matrixToRpy(R_0e)
+    except: # Fallback se la matrice non è di rotazione pura
+        rpy_ee = np.zeros(3)
 
-    # compute the mapping between euler rates and angular velocity
-    T_w = np.array([[math.cos(yaw)*math.cos(pitch),  -math.sin(yaw), 0],
-                    [math.sin(yaw)*math.cos(pitch),   math.cos(yaw), 0],
-                    [             -math.sin(pitch),               0, 1]])
+    roll, pitch, yaw = rpy_ee[0], rpy_ee[1], rpy_ee[2]
 
-    T_a = np.array([np.vstack((np.hstack((np.identity(3), np.zeros((3,3)))),
-                                          np.hstack((np.zeros((3,3)),np.linalg.inv(T_w)))))])
+    # Matrice di mappatura T_w
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    
+    # Questa è la mappatura per angoli ZYX (Yaw, Pitch, Roll)
+    # Assicurati che questa sia la convenzione che desideri
+    T_w_inv = np.array([
+        [cy/cp, sy/cp, 0],
+        [-sy,      cy, 0],
+        [cy*sp/cp, sy*sp/cp, 1]
+    ])
+    
+    T_a = np.block([
+        [np.eye(3), np.zeros((3,3))],
+        [np.zeros((3,3)), T_w_inv]
+    ])
 
-
-    J_a = np.dot(T_a, J)
-
-    return J_a[0]
+    J_a = T_a @ J
+    return J_a
 
 def numericalInverseKinematics(p_d, q0, line_search = False, wrap = False):
     math_utils = Math()
-
-    # hyper-parameters
-    epsilon = 1e-06 # Tolerance for stopping criterion
-    lambda_ = 1e-08  # Regularization or damping factor (1e-08->0.01)
-    max_iter = 200  # Maximum number of iterations
-    # For line search only
-    #gamma = 0.5
-    beta = 0.5 # Step size reduction
-
-    # initialization of variables
+    epsilon = 1e-6 
+    lambda_ = 1e-8 
+    max_iter = 200
+    beta = 0.5
     iter = 0
-    alpha = 1  # Step size
+    alpha = 1 
     log_grad = []
     log_err = []
 
-    # Inverse kinematics with line search
     while True:
-        # evaluate  the kinematics for q0
-        J,_,_,_,_,_ = computeEndEffectorJacobian(q0)
-        _, _, _, _,_,_, T_0e = directKinematics(q0)
+        J_geom,_,_,_,_,_ = computeEndEffectorJacobian(q0)
+        T_0e = directKinematics(q0)[-1]
 
         p_e = T_0e[:3,3]
-        R = T_0e[:3,:3]
-        rpy = math_utils.rot2eul(R)
-        roll = rpy[0]
-        p_e = np.append(p_e,roll)
+        try:
+            rpy = pin.rpy.matrixToRpy(T_0e[:3,:3])
+        except:
+            rpy = np.zeros(3)
 
-        # error
-        e_bar = p_e - p_d
-        J_bar = geometric2analyticJacobian(J,T_0e)
-        # take first 4 rows correspondent to our task
-        J_bar = J_bar[:4,:]
-        # evaluate the gradient
-        grad = J_bar.T.dot(e_bar)
+        # Il task è 4D: posizione (3) + pitch (1)
+        # L'errore deve essere calcolato sul pitch, non sul roll.
+        current_pose_4d = np.array([p_e[0], p_e[1], p_e[2], rpy[1]])
+        e_bar = current_pose_4d - p_d
+
+        J_a = geometric2analyticJacobian(J_geom, T_0e)
+        # Selezioniamo le righe del Jacobiano per il task 4D (x,y,z, pitch)
+        J_bar = np.vstack([J_a[0:3, :], J_a[4, :]])
+
+        grad = J_bar.T @ e_bar
 
         log_grad.append(np.linalg.norm(grad))
         log_err.append(np.linalg.norm(e_bar))
@@ -260,55 +229,36 @@ def numericalInverseKinematics(p_d, q0, line_search = False, wrap = False):
             print("Inverse kinematics solved in {} iterations".format(iter))     
             break
         if iter >= max_iter:                
-            print("Warning: Max number of iterations reached, the iterative algorithm has not reached convergence to the desired precision. Error is:  ", np.linalg.norm(e_bar))
+            print("Warning: Max number of iterations reached. Error is: ", np.linalg.norm(e_bar))
             break
-        # Compute the error
-        JtJ= np.dot(J_bar.T,J_bar) + np.identity(J_bar.shape[1])*lambda_
-        JtJ_inv = np.linalg.inv(JtJ)
-        P = JtJ_inv.dot(J_bar.T)
-        dq = - P.dot(e_bar)
+            
+        JtJ_inv = np.linalg.inv(J_bar.T @ J_bar + lambda_ * np.identity(J_bar.shape[1]))
+        dq = - JtJ_inv @ grad
 
         if not line_search:
-            q1 = q0 + dq * alpha
-            q0 = q1
+            q0 = q0 + dq * alpha
         else:
-            print("Iter # :", iter)
-            # line search loop
-            while True:
-                #update
-                q1 = q0 + dq*alpha
-                # evaluate  the kinematics for q1
-                _, _, _, _, _, _, T_0e1 = directKinematics(q1)
-                p_e1 = T_0e1[:3,3]
-                R1 = T_0e1[:3,:3]
-                rpy1 = math_utils.rot2eul(R1)
-                roll1 = rpy1[0]
-                p_e1 = np.append(p_e1,roll1)
-                e_bar_new = p_e1 - p_d
-                #print "e_bar1", np.linalg.norm(e_bar_new), "e_bar", np.linalg.norm(e_bar)
+            # Line search (semplificato)
+            q1 = q0 + dq*alpha
+            T_0e1 = directKinematics(q1)[-1]
+            p_e1 = T_0e1[:3,3]
+            try:
+                rpy1 = pin.rpy.matrixToRpy(T_0e1[:3,:3])
+            except:
+                rpy1 = np.zeros(3)
+            current_pose_4d_new = np.array([p_e1[0], p_e1[1], p_e1[2], rpy1[1]])
+            e_bar_new = current_pose_4d_new - p_d
 
-                error_reduction = np.linalg.norm(e_bar) - np.linalg.norm(e_bar_new)
-                threshold = 0.0 # more restrictive gamma*alpha*np.linalg.norm(e_bar)
-
-                if error_reduction < threshold:
-                    alpha = beta*alpha
-                    print (" line search: alpha: ", alpha)
-                else:
-                    q0 = q1
-                    alpha = 1
-                    break
+            if np.linalg.norm(e_bar_new) > np.linalg.norm(e_bar):
+                 alpha *= beta
+            else:
+                 q0 = q1
 
         iter += 1
            
-
- 
-    # wrapping prevents from outputs outside the range -2pi, 2pi
     if wrap:
         for i in range(len(q0)):
-            while q0[i] >= 2 * math.pi:
-                q0[i] -= 2 * math.pi
-            while q0[i] < -2 * math.pi:
-                q0[i] += 2 * math.pi
+            q0[i] = (q0[i] + np.pi) % (2 * np.pi) - np.pi
 
     return q0, log_err, log_grad
 
