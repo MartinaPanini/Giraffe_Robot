@@ -187,9 +187,6 @@ def simulation(ros_pub, robot, model, data, pitch_des_final, q, qd):
         ros_pub.publish(robot, q, qd, tau)
         tm.sleep(conf.dt * conf.SLOW_FACTOR)
 
-        if ros_pub.isShuttingDown():
-            break
-
     plt.figure(figsize=(12, 10))
     plt.suptitle(f"Performance del Controllo 4D")
 
