@@ -35,7 +35,7 @@ def initialize_log(time, q, qd, qdd, q_des, qd_des, qdd_des):
     return time_log, q_log, qd_log, qdd_log, q_des_log, qd_des_log, qdd_des_log, tau_log
 
 # Main loop to simulate dynamics
-def dyn_simulation(robot, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
+def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
     time_log, q_log, qd_log, qdd_log, q_des_log, qd_des_log, qdd_des_log, tau_log = initialize_log(time, q, qd, qdd, q_des, qd_des, qdd_des)
     while (not ros.is_shutdown()) or any(i >= 0.01 for i in np.abs(error)):
         # initialize Pinocchio variables
@@ -89,11 +89,18 @@ def dyn_simulation(robot, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         #############################################
         # Add end-stops
         #############################################
-        # jl_K = 100000
-        # jl_D = 100
-        # q_max = np.array([2*np.pi,   0.5,  2*np.pi, 2*np.pi])
-        # q_min = np.array([-2*np.pi, -0.5, -2*np.pi, -2*np.pi])
-        # end_stop_tau =  (q > q_max) * (jl_K * (q_max - q) + jl_D * (-qd)) +  (q  < q_min) * (jl_K * (q_min - q) + jl_D * (-qd))
+        jl_K = 100000
+        jl_D = 100
+        end_stop_tau = np.zeros(robot.nv)
+        q_max = np.array([2*np.pi, 0.5, 6.5, 2*np.pi, 2*np.pi]) 
+        q_min = np.array([-2*np.pi, -0.5, 0.0, -2*np.pi, -2*np.pi])
+
+        # Calcolo della coppia di end-stop
+        end_stop_tau =  (q > q_max) * (jl_K * (q_max - q) + jl_D * (-qd)) + \
+                        (q < q_min) * (jl_K * (q_min - q) + jl_D * (-qd))
+
+        # Total torque input
+        total_tau = end_stop_tau + damping
 
         #############################################
         # Compute joint accelerations

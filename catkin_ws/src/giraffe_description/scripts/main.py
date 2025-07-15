@@ -8,6 +8,7 @@ from utils.math_tools import Math
 
 from kinematics import *
 from task_space import simulation
+from dynamics import dyn_simulation
 
 import conf as conf
 
@@ -47,30 +48,31 @@ frame_id = robot.model.getFrameId(conf.frame_name)
 #####################################################################
 assert(robot.model.existFrame(conf.frame_name))
 frame_ee = robot.model.getFrameId(conf.frame_name)
+dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des)
 
 #####################################################################
 # Test Simulation
 #####################################################################
 
-# Variables initialization
-q_sim = conf.qhome.copy() # Usa variabili separate per la simulazione
-qd_sim = np.zeros(robot.nv) # Usa variabili separate per la simulazione
+# # Variables initialization
+# q_sim = conf.qhome.copy() # Usa variabili separate per la simulazione
+# qd_sim = np.zeros(robot.nv) # Usa variabili separate per la simulazione
 
-pitch_des_final = np.radians(conf.pitch_des_deg)
+# pitch_des_final = np.radians(conf.pitch_des_deg)
 
-# Cattura i valori finali di q e qd restituiti dalla simulazione
-q_final, qd_final = simulation(ros_pub, robot, model, data, pitch_des_final, q_sim, qd_sim)
+# # Cattura i valori finali di q e qd restituiti dalla simulazione
+# q_final, qd_final = simulation(ros_pub, robot, model, data, pitch_des_final, q_sim, qd_sim)
 
-# Aggiorna esplicitamente la cinematica diretta del robot con i valori finali
-pin.forwardKinematics(model, data, q_final, qd_final)
-pin.updateFramePlacement(model, data, frame_id)
+# # Aggiorna esplicitamente la cinematica diretta del robot con i valori finali
+# pin.forwardKinematics(model, data, q_final, qd_final)
+# pin.updateFramePlacement(model, data, frame_id)
 
-# Stampa la posa finale usando i dati aggiornati
-final_pos = data.oMf[frame_id].translation
-final_orient_rpy = pin.rpy.matrixToRpy(data.oMf[frame_id].rotation)
-print("\nPosizione Finale dell'End Effector (m):", final_pos)
-print("Orientamento Finale dell'End Effector (RPY - deg):", np.degrees(final_orient_rpy))
-print("Pitch Finale (deg):", np.degrees(final_orient_rpy[1]))
-print("Pitch Desiderato (deg):", np.degrees(pitch_des_final))
+# # Stampa la posa finale usando i dati aggiornati
+# final_pos = data.oMf[frame_id].translation
+# final_orient_rpy = pin.rpy.matrixToRpy(data.oMf[frame_id].rotation)
+# print("\nPosizione Finale dell'End Effector (m):", final_pos)
+# print("Orientamento Finale dell'End Effector (RPY - deg):", np.degrees(final_orient_rpy))
+# print("Pitch Finale (deg):", np.degrees(final_orient_rpy[1]))
+# print("Pitch Desiderato (deg):", np.degrees(pitch_des_final))
 
 ros_pub.deregister_node()
