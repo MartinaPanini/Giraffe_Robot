@@ -37,7 +37,8 @@ def initialize_log(time, q, qd, qdd, q_des, qd_des, qdd_des):
 # Main loop to simulate dynamics
 def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
     time_log, q_log, qd_log, qdd_log, q_des_log, qd_des_log, qdd_des_log, tau_log = initialize_log(time, q, qd, qdd, q_des, qd_des, qdd_des)
-    while (not ros.is_shutdown()) or any(i >= 0.01 for i in np.abs(error)):
+    while (not ros.is_shutdown()) and (time < conf.exp_dyn_duration):
+
         # initialize Pinocchio variables
         robot.computeAllTerms(q, qd)
         # vector of gravity acceleration
@@ -89,8 +90,8 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         #############################################
         # Add end-stops
         #############################################
-        jl_K = 100000
-        jl_D = 100
+        jl_K = 10000
+        jl_D = 10
         end_stop_tau = np.zeros(robot.nv)
         q_max = np.array([2*np.pi, 0.5, 6.5, 2*np.pi, 2*np.pi]) 
         q_min = np.array([-2*np.pi, -0.5, 0.0, -2*np.pi, -2*np.pi])
@@ -140,11 +141,6 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         #publish joint variables
         ros_pub.publish(robot, q, qd)
         tm.sleep(conf.dt*conf.SLOW_FACTOR)
-        
-        # stops the while loop if  you prematurely hit CTRL+C
-        if ros_pub.isShuttingDown():
-            print ("Shutting Down")
-            break
 
     # Convert to numpy arrays for plotting
     # Convert to numpy arrays for plotting
@@ -157,26 +153,4 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
     qdd_des_log = np.array(qdd_des_log).T
     tau_log = np.array(tau_log).T
                 
-    #raw_input("Robot came to a stop. Press Enter to continue")
-
-    # Sostituisci le ultime righe del codice con:
-    ros_pub.deregister_node()
-
-    # plot joint variables
-    plt.figure(1)
-    plotJoint('position', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
-
-    plt.figure(2)
-    plotJoint('velocity', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
-
-    plt.figure(3)
-    plotJoint('acceleration', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
-
-    plt.figure(4)
-    plotJoint('torque', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
-    
-    # Mostra tutti i plot e aspetta che l'utente li chiuda manualmente
-    plt.show()
-
-    # Oppure usa input() per aspettare l'input dell'utente
-    input("Premi Invio per terminare...")
+    return time_log, q_log, qd_log, qdd_log, q_des_log, qd_des_log, qdd_des_log, tau_log

@@ -48,7 +48,24 @@ frame_id = robot.model.getFrameId(conf.frame_name)
 #####################################################################
 assert(robot.model.existFrame(conf.frame_name))
 frame_ee = robot.model.getFrameId(conf.frame_name)
-dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des)
+time_log, q_log, qd_log, qdd_log, q_des_log, qd_des_log, qdd_des_log, tau_log = dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des)
+
+ros_pub.deregister_node()
+
+# plot joint variables
+plt.figure(1)
+plotJoint('position', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
+plt.figure(2)
+plotJoint('velocity', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
+plt.figure(3)
+plotJoint('acceleration', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
+plt.figure(4)
+plotJoint('torque', time_log, q_log, q_des_log, qd_log, qd_des_log, qdd_log, qdd_des_log, tau_log)
+# Mostra tutti i plot e aspetta che l'utente li chiuda manualmente
+plt.show()
+
+# Oppure usa input() per aspettare l'input dell'utente
+input("Premi Invio per terminare...")
 
 #####################################################################
 # Test Simulation

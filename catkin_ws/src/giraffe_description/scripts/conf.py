@@ -10,6 +10,7 @@ qdd0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0])                     # accelerations
 # Controller parameters
 dt = 0.001                     # Controller time step [s]
 exp_duration = 6.0            # Simulation duration [s]
+exp_dyn_duration = 3.0
 SLOW_FACTOR = 5                # Real-time factor
 frame_name = 'ee_link'         # Controlled frame
 
