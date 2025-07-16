@@ -16,7 +16,7 @@
 
   <link name="world"/>
 
-  <!-- Base - Increased mass and corrected inertia -->
+  <!-- Base -->
   <link name="base_link">
     <visual>
       <geometry><box size="0.2 0.2 0.05"/></geometry>
@@ -26,9 +26,8 @@
       <geometry><box size="0.2 0.2 0.05"/></geometry>
     </collision>
     <inertial>
-      <mass value="5.0"/>  <!-- Increased from 2.0 -->
+      <mass value="5.0"/>  
       <origin xyz="0 0 0"/>
-      <!-- Corrected inertia for box: I = 1/12*m*(y²+z²) -->
       <inertia ixx="0.00417" ixy="0" ixz="0" iyy="0.00417" iyz="0" izz="0.00833"/>
     </inertial>
   </link>
@@ -39,7 +38,7 @@
     <origin xyz="2.5 6.0 ${ceiling_height}" rpy="0 0 0"/>
   </joint>
 
-  <!-- Link1: Pan - Corrected inertia for cylinder -->
+  <!-- Link1 -->
   <link name="link1">
     <visual>
       <geometry><cylinder length="0.1" radius="0.05"/></geometry>
@@ -64,7 +63,7 @@
     <dynamics damping="0.5"/>  
   </joint>
 
-  <!-- Link2: Tilt - Corrected inertia and COM -->
+  <!-- Link2 -->
   <link name="link2">
     <visual>
       <geometry><cylinder length="${arm_segment_length}" radius="0.03"/></geometry>
@@ -76,9 +75,8 @@
       <geometry><cylinder length="${arm_segment_length}" radius="0.03"/></geometry>
     </collision>
     <inertial>
-      <mass value="2.0"/>  <!-- Increased from 0.7 -->
+      <mass value="2.0"/>  
       <origin xyz="${arm_segment_length/2} 0 0"/>  <!-- COM at center -->
-      <!-- For cylinder along x: Ixx = 1/2*m*r², Iyy=Izz=1/12*m*(3r²+L²) -->
       <inertia ixx="0.0009" ixy="0" ixz="0" iyy="0.0417" iyz="0" izz="0.0417"/>
     </inertial>
   </link>
@@ -88,11 +86,11 @@
     <child link="link2"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
-    <limit lower="-${2*M_PI/3}" upper="0" effort="100" velocity="1"/> <!-- Reduced range -->
-    <dynamics damping="0.5"/>  <!-- Added damping -->
+    <limit lower="-${2*M_PI/3}" upper="0" effort="100" velocity="1"/>
+    <dynamics damping="0.5"/>  
   </joint>
 
-  <!-- Link3: Prismatic - Increased mass and corrected inertia -->
+  <!-- Link3 -->
 <link name="link3">
     <visual>
       <geometry><cylinder length="${prismatic_max_extension}" radius="0.03"/></geometry>
@@ -116,10 +114,10 @@
     <origin xyz="${arm_segment_length} 0 0" rpy="0 0 0"/>
     <axis xyz="1 0 0"/>
     <limit lower="0" upper="${prismatic_max_extension}" effort="10000" velocity="0.5"/>
-    <dynamics damping="10.0" friction="2.0"/>  <!-- Increased damping -->
+    <dynamics damping="10.0" friction="2.0"/>  
   </joint>
 
-  <!-- Link4: Microphone bar - Corrected inertia -->
+  <!-- Link4: Microphone bar -->
   <link name="link4">
     <visual>
       <geometry><cylinder length="${mic_arm_length}" radius="0.025"/></geometry>
@@ -131,9 +129,8 @@
       <geometry><cylinder length="${mic_arm_length}" radius="0.01"/></geometry>
     </collision>
     <inertial>
-      <mass value="0.5"/>  <!-- Increased from 0.1 -->
+      <mass value="0.5"/>  
       <origin xyz="${mic_arm_length/2} 0 0"/>
-      <!-- For cylinder along x: Ixx = 1/2*m*r², Iyy=Izz=1/12*m*(3r²+L²) -->
       <inertia ixx="0.000025" ixy="0" ixz="0" iyy="0.00377" iyz="0" izz="0.00377"/>
     </inertial>
   </link>
@@ -147,7 +144,7 @@
     <dynamics damping="0.3"/>
   </joint>
 
-  <!-- End-effector: microphone - Corrected inertia -->
+  <!-- End-effector: microphone -->
   <link name="ee_link">
     <visual>
       <geometry><sphere radius="0.025"/></geometry>
