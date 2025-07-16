@@ -13,16 +13,11 @@ from utils.common_functions import *
 from utils.ros_publish import RosPub
 from utils.kin_dyn_utils import directKinematics
 from utils.kin_dyn_utils import computeEndEffectorJacobian
-from utils.kin_dyn_utils import numericalInverseKinematics as ik
-from utils.kin_dyn_utils import fifthOrderPolynomialTrajectory as coeffTraj
 from utils.kin_dyn_utils import geometric2analyticJacobian
-from utils.in_kin_pinocchio import robotKinematics
 from utils.math_tools import Math
 import matplotlib.pyplot as plt
-from utils.common_functions import plotJoint
 
 import conf as conf
-
 
 # Direct kinematics
 def dk_test(q, qd, robot, frame_id):

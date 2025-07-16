@@ -10,10 +10,6 @@ import time as tm
 import os
 from utils.common_functions import *
 from utils.ros_publish import RosPub
-from utils.kin_dyn_utils import RNEA
-from utils.kin_dyn_utils import getM
-from utils.kin_dyn_utils import getg
-from utils.kin_dyn_utils import getC
 
 import conf as conf
 
@@ -41,13 +37,8 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
 
         # initialize Pinocchio variables
         robot.computeAllTerms(q, qd)
-        # vector of gravity acceleration
-        g0 = np.array([0.0, 0.0, -9.81])
         # type of joints
         joint_types = np.array(['revolute', 'revolute', 'prismatic', 'revolute', 'revolute'])
-        ##############################
-        # Implement RNEA
-        ##############################
         # compute RNEA with Pinocchio
         taup = pin.rnea(robot.model, robot.data, q, qd, qdd)
         print("RNEA: ", taup)
@@ -56,7 +47,7 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         ######################################
         # Compute dynamic terms
         ######################################
-        # Pinocchio
+        # Gravity
         gp = robot.gravity(q)
         print("Gravity: ", gp)
         print("-------------------------------")
@@ -77,9 +68,6 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         print("Bias Term: ", hp)
         print("-------------------------------")
 
-        #############################################
-        # Add a damping term
-        #############################################
         # viscous friction to stop the motion
         damping =  -0.1*qd
 
@@ -87,16 +75,13 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         # Total torque input
         total_tau = end_stop_tau + damping
 
-        #############################################
         # Add end-stops
-        #############################################
         jl_K = 10000
         jl_D = 10
         end_stop_tau = np.zeros(robot.nv)
         q_max = np.array([2*np.pi, 0.5, 6.5, 2*np.pi, 2*np.pi]) 
         q_min = np.array([-2*np.pi, -0.5, 0.0, -2*np.pi, -2*np.pi])
 
-        # Calcolo della coppia di end-stop
         end_stop_tau =  (q > q_max) * (jl_K * (q_max - q) + jl_D * (-qd)) + \
                         (q < q_min) * (jl_K * (q_min - q) + jl_D * (-qd))
 
@@ -106,7 +91,7 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         #############################################
         # Compute joint accelerations
         #############################################
-        # compute accelerations (torques are zero!)
+        # compute accelerations 
         # Pinocchio
         qdd = np.linalg.inv(M).dot(total_tau - hp)
         print("qdd computed by forward dynamics: ", qdd)
@@ -142,7 +127,6 @@ def dyn_simulation(robot, time, ros_pub, q, qd, qdd, q_des, qd_des, qdd_des):
         ros_pub.publish(robot, q, qd)
         tm.sleep(conf.dt*conf.SLOW_FACTOR)
 
-    # Convert to numpy arrays for plotting
     # Convert to numpy arrays for plotting
     time_log = np.array(time_log)
     q_log = np.array(q_log).T

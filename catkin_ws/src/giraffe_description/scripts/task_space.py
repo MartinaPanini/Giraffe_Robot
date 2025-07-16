@@ -40,19 +40,19 @@ def postural_target_computation(model, data, pitch_des_final):
     eps = 1e-4
     IT_MAX = 5000
     damp = 1e-5
-    dt_ik = 0.01 # Step size per l'IK
+    dt_ik = 0.01 # step size for IK
     q_ik = conf.qhome.copy()
 
     for i in range(IT_MAX):
         pin.forwardKinematics(model, data, q_ik)
         pin.updateFramePlacement(model, data, model.getFrameId(conf.frame_name))
 
-        # Pose attuale
+        # Attual pose
         p_ik = data.oMf[model.getFrameId(conf.frame_name)].translation
         R_ik = data.oMf[model.getFrameId(conf.frame_name)].rotation
         pitch_ik = pin.rpy.matrixToRpy(R_ik)[1]
 
-        # Errore 4D
+        # 4D error
         err_pos = p_ik - conf.pdes
         err_pitch = pitch_ik - pitch_des_final
         err_4d = np.hstack([err_pos, err_pitch])
@@ -61,14 +61,14 @@ def postural_target_computation(model, data, pitch_des_final):
             print(f"IK 4D converged in {i} iterations.")
             break
 
-        # Jacobiano 4D
-        J6_ik = pin.computeFrameJacobian(model, data, q_ik, model.getFrameId(conf.frame_name), pin.LOCAL_WORLD_ALIGNED)
-        J_ik_4d = np.vstack([J6_ik[:3, :], J6_ik[4, :]])
+        # 4D Jacobian
+        J_ik = pin.computeFrameJacobian(model, data, q_ik, model.getFrameId(conf.frame_name), pin.LOCAL_WORLD_ALIGNED)
+        J_ik_4d = np.vstack([J_ik[:3, :], J_ik[4, :]])
 
-        # Damped least-squares inverse per il task 4D
+        # Damped least-squares inverse for task 4D
         J_inv_4d = J_ik_4d.T @ np.linalg.inv(J_ik_4d @ J_ik_4d.T + damp * np.eye(4))
 
-        # Aggiorna configurazione giunti
+        # Update joint configuration
         v_ik = -J_inv_4d @ err_4d
         q_ik = pin.integrate(model, q_ik, v_ik * dt_ik)
     else:
@@ -118,7 +118,7 @@ def simulation(ros_pub, robot, model, data, pitch_des_final, q, qd):
         pin.forwardKinematics(model, data, q, qd)
         pin.updateFramePlacement(model, data, frame_id)
 
-        J6 = pin.getFrameJacobian(model, data, frame_id, pin.LOCAL_WORLD_ALIGNED)
+        J = pin.getFrameJacobian(model, data, frame_id, pin.LOCAL_WORLD_ALIGNED)
 
         p = data.oMf[frame_id].translation
         w_R_e = data.oMf[frame_id].rotation
@@ -126,14 +126,14 @@ def simulation(ros_pub, robot, model, data, pitch_des_final, q, qd):
         rpy = pin.rpy.matrixToRpy(w_R_e)
         pitch = rpy[1]
 
-        twist = J6 @ qd
+        twist = J @ qd
         v = twist[:3]
         omega = twist[3:]
         pitch_vel = omega[1]
 
         J_task = np.vstack([
-            J6[0:3, :],
-            J6[4, :]
+            J[0:3, :],
+            J[4, :]
         ])
 
         p_error = p_des - p
@@ -152,8 +152,8 @@ def simulation(ros_pub, robot, model, data, pitch_des_final, q, qd):
         h = pin.nonLinearEffects(model, data, q, qd)
         Minv = np.linalg.inv(M)
 
-        Jdot_6d = pin.getFrameJacobianTimeVariation(model, data, frame_id, pin.LOCAL_WORLD_ALIGNED)
-        Jdot_task_4d = np.vstack([Jdot_6d[0:3, :], Jdot_6d[4, :]])
+        Jdot = pin.getFrameJacobianTimeVariation(model, data, frame_id, pin.LOCAL_WORLD_ALIGNED)
+        Jdot_task_4d = np.vstack([Jdot[0:3, :], Jdot[4, :]])
         Jdotqd_task = Jdot_task_4d @ qd
 
         Lambda_task = np.linalg.inv(J_task @ Minv @ J_task.T + 1e-6*np.eye(4))
@@ -188,28 +188,28 @@ def simulation(ros_pub, robot, model, data, pitch_des_final, q, qd):
         tm.sleep(conf.dt * conf.SLOW_FACTOR)
 
     plt.figure(figsize=(12, 10))
-    plt.suptitle(f"Performance del Controllo 4D")
+    plt.suptitle(f"Performance of Control")
 
     labels_pos = ['X', 'Y', 'Z']
     for i in range(3):
         plt.subplot(4, 1, i+1)
-        plt.plot(time_log[:log_counter], p_log[i, :log_counter], label=f'Attuale {labels_pos[i]}')
-        plt.plot(time_log[:log_counter], p_des_log[i, :log_counter], '--', label=f'Desiderato {labels_pos[i]}')
-        plt.ylabel(f'Posizione {labels_pos[i]} [m]')
+        plt.plot(time_log[:log_counter], p_log[i, :log_counter], label=f'Actual {labels_pos[i]}')
+        plt.plot(time_log[:log_counter], p_des_log[i, :log_counter], '--', label=f'Desired {labels_pos[i]}')
+        plt.ylabel(f'Position {labels_pos[i]} [m]')
         plt.legend()
         plt.grid(True)
 
     plt.subplot(4, 1, 4)
-    plt.plot(time_log[:log_counter], np.degrees(pitch_log[:log_counter]), label='Pitch Attuale')
-    plt.plot(time_log[:log_counter], np.degrees(pitch_des_log[:log_counter]), '--', label='Pitch Desiderato')
+    plt.plot(time_log[:log_counter], np.degrees(pitch_log[:log_counter]), label='Pitch Actual')
+    plt.plot(time_log[:log_counter], np.degrees(pitch_des_log[:log_counter]), '--', label='Pitch Desired')
     plt.ylabel('Pitch [deg]')
-    plt.xlabel('Tempo [s]')
+    plt.xlabel('Time [s]')
     plt.legend()
     plt.grid(True)
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
-    input("Premi Invio per terminare...")
-    # Restituisce le configurazioni finali dei giunti
+    input("Press ENTER to stop")
+ 
     return q, qd
